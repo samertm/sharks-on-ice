@@ -18,21 +18,28 @@ function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min)) + min;
 }
 
-// coords = {x:int, y:int, width:int, height:int}
+function midpoint(rect) {
+  return {x: (2*rect.x + rect.width) / 2, y: (2*rect.y + rect.height)}
+}
+
+function collide(r1, r2) {
+  return !(r2.x > r1.x+r1.width || 
+           r2.x+r2.width < r1.x || 
+           r2.y > r1.y+r1.height ||
+           r2.y+r2.height < r1.y);
+}
+
+// rects = {x:int, y:int, width:int, height:int}
 // return bool
-function collide(coord, sheeps) {
-  if (coord.x+coord.width >= SCREEN_WIDTH) {
-    return false;
+function collideArray(rect, sheeps) {
+  if (rect.x+rect.width >= SCREEN_WIDTH) {
+    return true;
   }
-  if (coord.y+coord.height >= SCREEN_HEIGHT) {
-    return false;
+  if (rect.y+rect.height >= SCREEN_HEIGHT) {
+    return true;
   }
   for (var i = 0; i < sheeps.length; i++) {
-    var s = sheeps[i]
-    if (coord.x >= s.x && coord.x <= s.x+s.width || // check x
-        coord.x+coord.width >= s.x && coord.x+coord.width <= s.x+s.width || // check x+width
-        coord.y >= s.y && coord.y <= s.y+s.height ||
-        coord.y+coord.height >= s.y && coord.y+coord.height <= s.y+s.height) {
+    if (collide(rect, sheeps[i])) {
       return true
     }
   }
@@ -40,13 +47,13 @@ function collide(coord, sheeps) {
 }
 
 // non-overlapping
-function genCoord(sheeps, width, height) {
+function genRect(sheeps, width, height) {
   while (true) {
-    // Generate a random coords here.
+    // Generate a random rects here.
     var x = getRandomInt(0, SCREEN_WIDTH - width)
     var y = getRandomInt(0, SCREEN_HEIGHT - height)
-    // Check to see if our coords conflict with any existing sheep.
-    if (!collide({x:x, y:y, width:width, height:height}, sheeps)) {
+    // Check to see if our rects conflict with any existing sheep.
+    if (!collideArray({x:x, y:y, width:width, height:height}, sheeps)) {
       break
     }
   }
@@ -61,9 +68,9 @@ function initSheeps(sheeps) {
     sheeps[i].state = "idle";
     sheeps[i].scale.x = baseScale;
     sheeps[i].scale.y = baseScale;
-    coord = genCoord(sheeps.slice(0, i), sheeps[i].width, sheeps[i].height);
-    sheeps[i].position.x = coord.x;
-    sheeps[i].position.y = coord.y;
+    rect = genRect(sheeps.slice(0, i), sheeps[i].width, sheeps[i].height);
+    sheeps[i].position.x = rect.x;
+    sheeps[i].position.y = rect.y;
     sheeps[i].click = function(evt) {
       this.scale.x += .5;
       this.scale.y += .5;
