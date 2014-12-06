@@ -9,8 +9,10 @@ var stage = new PIXI.Stage(0x00B200, true);
 stage.interactive = true;
 
 var sheepTexture = PIXI.Texture.fromImage("sheep.gif");
+
+
 var sheeps = [];
-for (var i = 0; i < 100; i++) {
+for (var i = 0; i < 50; i++) {
   sheeps.push(new PIXI.Sprite(sheepTexture));
 }
 
@@ -23,6 +25,9 @@ function midpoint(rect) {
 }
 
 function collide(r1, r2) {
+  if (r1.id == r2.id) {
+    return false;
+  }
   return !(r2.x > r1.x+r1.width || 
            r2.x+r2.width < r1.x || 
            r2.y > r1.y+r1.height ||
@@ -61,13 +66,18 @@ function genRect(sheeps, width, height) {
   return {x: x, y: y}
 }
 
-var baseScale = .5
+var baseScale = 1;
+var id = 0;
 function initSheeps(sheeps) {
   for (var i = 0; i < sheeps.length; i++) {
+    sheeps[i].id = id++;
     sheeps[i].interactive = true;
     sheeps[i].state = "idle";
-    sheeps[i].scale.x = baseScale;
-    sheeps[i].scale.y = baseScale;
+    // HACK
+    // sheeps[i].scale.x = baseScale;
+    // sheeps[i].scale.y = baseScale;
+    sheeps[i].width = 84;
+    sheeps[i].height = 73;
     rect = genRect(sheeps.slice(0, i), sheeps[i].width, sheeps[i].height);
     sheeps[i].position.x = rect.x;
     sheeps[i].position.y = rect.y;
@@ -79,7 +89,22 @@ function initSheeps(sheeps) {
   }
 };
 
-initSheeps(sheeps);
+var DEBUG = false;
+
+function init() {
+  initSheeps(sheeps);
+  // if (DEBUG) {
+  //   var dGraphics = new PIXI.Graphics
+  //   for (var i = 0; i < sheeps.length; i++) {
+  //     dGraphics.lineStyle(5);
+  //     dGraphics.drawRect(sheeps[i].x, sheeps[i].y, sheepTexture.width, sheepTexture.height);
+  //     dGraphics.endFill();
+  //   }
+  //   stage.addChild(dGraphics);
+  // }
+}
+
+init();
 
 requestAnimationFrame(animate);
 
