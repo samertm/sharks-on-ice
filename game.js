@@ -1,22 +1,24 @@
 "use strict";
-var SCREEN_WIDTH = 1200;
+var SCREEN_WIDTH  = 1200;
 var SCREEN_HEIGHT = 800;
-var DEBUG = false;
-var renderer = new PIXI.WebGLRenderer(SCREEN_WIDTH, SCREEN_HEIGHT);
-var graphics = new PIXI.Graphics
+var DEBUG         = false;
+var renderer      = new PIXI.WebGLRenderer(SCREEN_WIDTH, SCREEN_HEIGHT);
+var graphics      = new PIXI.Graphics
 
 document.body.appendChild(renderer.view);
 
-var b2Vec2 = Box2D.Common.Math.b2Vec2;
-var b2BodyDef = Box2D.Dynamics.b2BodyDef;
-var b2Body = Box2D.Dynamics.b2Body;
-var b2FixtureDef = Box2D.Dynamics.b2FixtureDef;
-var b2Fixture = Box2D.Dynamics.b2Fixture;
-var b2World = Box2D.Dynamics.b2World;
-var b2MassData = Box2D.Collision.Shapes.b2MassData;
-var b2PolygonShape = Box2D.Collision.Shapes.b2PolygonShape;
-var b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
-var b2DebugDraw = Box2D.Dynamics.b2DebugDraw;
+var b2Vec2          = Box2D.Common.Math.b2Vec2;
+var b2BodyDef       = Box2D.Dynamics.b2BodyDef;
+var b2Body          = Box2D.Dynamics.b2Body;
+var b2FixtureDef    = Box2D.Dynamics.b2FixtureDef;
+var b2Fixture       = Box2D.Dynamics.b2Fixture;
+var b2World         = Box2D.Dynamics.b2World;
+var b2MassData      = Box2D.Collision.Shapes.b2MassData;
+var b2PolygonShape  = Box2D.Collision.Shapes.b2PolygonShape;
+var b2CircleShape   = Box2D.Collision.Shapes.b2CircleShape;
+var b2MouseJointDef =  Box2D.Dynamics.Joints.b2MouseJointDef
+var b2AABB          = Box2D.Collision.b2AABB
+var b2DebugDraw     = Box2D.Dynamics.b2DebugDraw;
 
 var world = new b2World(new b2Vec2(0, 0), true);
 var stage = new PIXI.Stage(0x00B200, true);
@@ -42,7 +44,7 @@ world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 staticBodyDef.position.Set(SCREEN_WIDTH/100 + 1, 3);
 world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 
-var actorId = 0;
+var actorId         = 0;
 var dynamicBodyDef  = new b2BodyDef;
 dynamicBodyDef.type = b2Body.b2_dynamicBody;
 
@@ -58,6 +60,7 @@ function Actor(texture, width, height) {
   this.body = world.CreateBody(dynamicBodyDef)
   this.body.SetLinearDamping(1);
   this.body.CreateFixture(boxFixDef);
+  this.body.type = this.constructor.name;
   this.sprite = new PIXI.Sprite(texture);
   this.sprite.interactive = true;
   this.sprite.anchor.x = 0.5;
@@ -67,7 +70,7 @@ function Actor(texture, width, height) {
 }
 
 var sheepTexture = PIXI.Texture.fromImage("sheep.gif");
-var sheepWidth = 84;
+var sheepWidth   = 84;
 var sheepHeight = 73;
 function Sheep() {
   Actor.call(this, sheepTexture, sheepWidth, sheepHeight);
@@ -76,12 +79,13 @@ function Sheep() {
   }
 }
 Sheep.prototype = Object.create(Actor.prototype);
+Sheep.prototype.constructor = Sheep;
 Sheep.prototype.click = function(evt) {
-  sheeps.randomAttack(this);
+  sharks.randomAttack(this);
 }
 
 var sharkTexture = PIXI.Texture.fromImage("shark.png");
-var sharkWidth = 128;
+var sharkWidth   = 128;
 var sharkHeight = 128;
 function Shark() {
   Actor.call(this, sharkTexture, sharkWidth, sharkHeight);
@@ -90,6 +94,7 @@ function Shark() {
   }
 }
 Shark.prototype = Object.create(Actor.prototype);
+Shark.prototype.constructor = Shark;
 // Shark.prototype.click = function(evt) {
 //   sharks.randomAttack(this);
 // }
@@ -158,8 +163,94 @@ function initSharks(num) {
   }
 }
 
+var mouseX, mouseY, mousePVec, isMouseDown, selectedBody, mouseJoint;
+var canvasPosition = getElementPosition(renderer.view);
+
+document.addEventListener("mousedown", function(e) {
+  isMouseDown = true;
+  handleMouseMove(e);
+  document.addEventListener("mousemove", handleMouseMove, true);
+}, true);
+
+document.addEventListener("mouseup", function() {
+  document.removeEventListener("mousemove", handleMouseMove, true);
+  isMouseDown = false;
+  mouseX = undefined;
+  mouseY = undefined;
+}, true);
+
+function handleMouseMove(e) {
+  mouseX = (e.clientX - canvasPosition.x) / b2Scale;
+  mouseY = (e.clientY - canvasPosition.y) / b2Scale;
+};
+
+function getBodyAtMouse() {
+  mousePVec = new b2Vec2(mouseX, mouseY);
+  var aabb = new b2AABB();
+  aabb.lowerBound.Set(mouseX - 0.001, mouseY - 0.001);
+  aabb.upperBound.Set(mouseX + 0.001, mouseY + 0.001);
+  
+  // Query the world for overlapping shapes.
+
+  selectedBody = null;
+  world.QueryAABB(getBodyCB, aabb);
+  return selectedBody;
+}
+
+function getBodyCB(fixture) {
+  if(fixture.GetBody().GetType() != b2Body.b2_staticBody) {
+    if(fixture.GetShape().TestPoint(fixture.GetBody().GetTransform(), mousePVec)) {
+      selectedBody = fixture.GetBody();
+      return false;
+    }
+  }
+  return true;
+}
+
+//http://js-tut.aardon.de/js-tut/tutorial/position.html
+function getElementPosition(element) {
+  var elem=element, tagname="", x=0, y=0;
+  
+  while((typeof(elem) == "object") && (typeof(elem.tagName) != "undefined")) {
+    y += elem.offsetTop;
+    x += elem.offsetLeft;
+    tagname = elem.tagName.toUpperCase();
+
+    if(tagname == "BODY")
+      elem=0;
+
+    if(typeof(elem) == "object") {
+      if(typeof(elem.offsetParent) == "object")
+        elem = elem.offsetParent;
+    }
+  }
+
+  return {x: x, y: y};
+}
 
 function gameLogic() {
+  if(isMouseDown && (!mouseJoint)) {
+    var body = getBodyAtMouse();
+    if(body && body.type == "Sheep") {
+      console.log("FJLK")
+      var md = new b2MouseJointDef();
+      md.bodyA = world.GetGroundBody();
+      md.bodyB = body;
+      md.target.Set(mouseX, mouseY);
+      md.collideConnected = true;
+      md.maxForce = b2Scale * 10 * body.GetMass();
+      mouseJoint = world.CreateJoint(md);
+      body.SetAwake(true);
+    }
+  }
+  if(mouseJoint) {
+    if(isMouseDown) {
+      mouseJoint.SetTarget(new b2Vec2(mouseX, mouseY));
+    } else {
+      world.DestroyJoint(mouseJoint);
+      mouseJoint = null;
+    }
+  }
   world.Step(1/60, 3, 3);
   if (DEBUG) {
     sheeps.debugBodies(false);
@@ -168,7 +259,6 @@ function gameLogic() {
   world.ClearForces();
   sheeps.setPositions();
   sharks.setPositions();
-  //moveSheeps(sheeps);
 }
 
 function animate() {
