@@ -29,11 +29,12 @@ var boxFixDef = new b2FixtureDef();
 boxFixDef.shape = new b2PolygonShape();
 var staticBodyDef = new b2BodyDef();
 staticBodyDef.type = b2Body.b2_staticBody;
-boxFixDef.shape.SetAsBox(SCREEN_WIDTH/b2Scale, 2);
-staticBodyDef.position.Set(9, SCREEN_HEIGHT/100 + 1);
-world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
-
+// bottom
 boxFixDef.shape.SetAsBox(SCREEN_WIDTH/b2Scale, 1);
+staticBodyDef.position.Set(9, SCREEN_HEIGHT/b2Scale + 1);
+world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
+// top
+boxFixDef.shape.SetAsBox(SCREEN_WIDTH/b2Scale , 0);
 staticBodyDef.position.Set(9, 0);
 world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 boxFixDef.shape.SetAsBox(1, 100);
@@ -48,19 +49,20 @@ var actorId         = 0;
 var dynamicBodyDef  = new b2BodyDef;
 dynamicBodyDef.type = b2Body.b2_dynamicBody;
 
-function Actor(texture, width, height) {
+function Actor(texture, width, height, restitution) {
   this.id = actorId++;
   this.state = "idle";
   this.width = width;
   this.height = height;
   boxFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
+  boxFixDef.restitution = restitution;
   var x = getRandomInt(0, SCREEN_WIDTH - this.width)
   var y = getRandomInt(0, SCREEN_HEIGHT - this.height)
   dynamicBodyDef.position.Set(x/b2Scale, y/b2Scale)
   this.body = world.CreateBody(dynamicBodyDef)
   this.body.SetLinearDamping(1);
   this.body.CreateFixture(boxFixDef);
-  this.body.type = this.constructor.name;
+  this.body.actor = this;
   this.sprite = new PIXI.Sprite(texture);
   this.sprite.interactive = true;
   this.sprite.anchor.x = 0.5;
@@ -73,22 +75,25 @@ var sheepTexture = PIXI.Texture.fromImage("sheep.gif");
 var sheepWidth   = 84;
 var sheepHeight = 73;
 function Sheep() {
-  Actor.call(this, sheepTexture, sheepWidth, sheepHeight);
+  Actor.call(this, sheepTexture, sheepWidth, sheepHeight, .8);
   if (this.click) {
     this.sprite.click = this.click.bind(this);
   }
 }
 Sheep.prototype = Object.create(Actor.prototype);
 Sheep.prototype.constructor = Sheep;
-Sheep.prototype.click = function(evt) {
-  sharks.randomAttack(this);
-}
+// Sheep.prototype.click = function(evt) {
+//   sharks.randomAttack(this);
+// }
 
 var sharkTexture = PIXI.Texture.fromImage("shark.png");
 var sharkWidth   = 128;
 var sharkHeight = 128;
 function Shark() {
-  Actor.call(this, sharkTexture, sharkWidth, sharkHeight);
+  Actor.call(this, sharkTexture, sharkWidth, sharkHeight, .2);
+  this.target = null;
+  this.body.GetFixtureList().SetDensity(4);
+  this.body.ResetMassData();
   if (this.click) {
     this.sprite.click = this.click.bind(this);
   }
@@ -144,6 +149,40 @@ Actors.prototype.debugBodies = function(init) {
   }
 }
 
+Actors.prototype.set = function(field, value) {
+  for (var i = 0; i < this.length; i++) {
+    this[i][field] = value;
+  }
+}
+
+Actors.prototype.getOne = function(field, compareFn) {
+  for (var i = 0; i < this.length; i++) {
+    if (compareFn(this[i][field])) {
+      return this[i];
+    }
+  }
+}
+
+Actors.prototype.get = function(field, compareFn) {
+  var v = new Actors
+  for (var i = 0; i < this.length; i++) {
+    if (compareFn(this[i][field])) {
+      v.push(this[i]);
+    }
+  }
+  return v;
+}
+
+Actors.prototype.doFor = function(doFn) {
+  for (var i = 0; i < this.length; i++) {
+    doFn(this[i]);
+  }
+}
+
+Actors.prototype.random = function() {
+  return this[getRandomInt(0, this.length)];
+}
+
 var baseScale = 1;
 var sheeps = new Actors;
 function initSheeps(num) {
@@ -163,8 +202,31 @@ function initSharks(num) {
   }
 }
 
+sharks.setAttackSheep = function() {
+  var s = this.getOne("state", function(t) { return t === "attack"; })
+  if (s == null) {
+    // Find a shark to attack and give it a target.
+    s = sharks.random();
+    s.state = "attack";
+    s.target = sheeps.random();
+  }
+}
+
+sharks.attack = function() {
+  sharks.doFor(function(shark) {
+    if (shark.state == "attack") {
+      var impulse = shark.target.body.GetWorldCenter().Copy();
+      impulse.Subtract(shark.body.GetWorldCenter());
+      // dampen
+      impulse.Normalize();
+      impulse.Multiply(0.08);
+      shark.body.ApplyImpulse(impulse, shark.body.GetWorldCenter());
+    }
+  });
+}
+
 var mouseX, mouseY, mousePVec, isMouseDown, selectedBody, mouseJoint;
-var canvasPosition = getElementPosition(renderer.view);
+  var canvasPosition = getElementPosition(renderer.view);
 
 document.addEventListener("mousedown", function(e) {
   isMouseDown = true;
@@ -231,8 +293,8 @@ function getElementPosition(element) {
 function gameLogic() {
   if(isMouseDown && (!mouseJoint)) {
     var body = getBodyAtMouse();
-    if(body && body.type == "Sheep") {
-      console.log("FJLK")
+    if(body && body.actor instanceof Sheep) {
+      console.log(body.GetAngle())
       var md = new b2MouseJointDef();
       md.bodyA = world.GetGroundBody();
       md.bodyB = body;
@@ -257,8 +319,13 @@ function gameLogic() {
     sharks.debugBodies(false);
   }
   world.ClearForces();
+  
+  sharks.setAttackSheep();
+  sharks.attack();
+  
   sheeps.setPositions();
   sharks.setPositions();
+  
 }
 
 function animate() {
