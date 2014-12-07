@@ -42,115 +42,80 @@ world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 staticBodyDef.position.Set(SCREEN_WIDTH/100 + 1, 3);
 world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 
-var sheepId = 0;
-var sheepFixDef = new b2FixtureDef;
-sheepFixDef.shape = new b2PolygonShape;
-var sheepBodyDef = new b2BodyDef;
-sheepBodyDef.type = b2Body.b2_dynamicBody;
-function Sheep(texture) {
-  this.id = sheepId++;
+var actorId = 0;
+var dynamicBodyDef  = new b2BodyDef;
+dynamicBodyDef.type = b2Body.b2_dynamicBody;
+
+function Actor(texture, width, height) {
+  this.id = actorId++;
   this.state = "idle";
-  // HACK
-  this.width = 84;
-  this.height = 73;
-  sheepFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
+  this.width = width;
+  this.height = height;
+  boxFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
   var x = getRandomInt(0, SCREEN_WIDTH - this.width)
   var y = getRandomInt(0, SCREEN_HEIGHT - this.height)
-  sheepBodyDef.position.Set(x/b2Scale, y/b2Scale)
-  this.body = world.CreateBody(sheepBodyDef)
+  dynamicBodyDef.position.Set(x/b2Scale, y/b2Scale)
+  this.body = world.CreateBody(dynamicBodyDef)
   this.body.SetLinearDamping(1);
-  this.body.CreateFixture(sheepFixDef);
+  this.body.CreateFixture(boxFixDef);
   this.sprite = new PIXI.Sprite(texture);
   this.sprite.interactive = true;
   this.sprite.anchor.x = 0.5;
   this.sprite.anchor.y = 0.5;
   this.sprite.position.x = x;
   this.sprite.position.y = y;
-  // FIXME: fix this later
-  this.sprite.click = function(evt) {
-    sheeps.randomAttack(this);
-  }.bind(this)
 }
 
 var sheepTexture = PIXI.Texture.fromImage("sheep.gif");
+var sheepWidth = 84;
+var sheepHeight = 73;
+function Sheep() {
+  Actor.call(this, sheepTexture, sheepWidth, sheepHeight);
+  if (this.click) {
+    this.sprite.click = this.click.bind(this);
+  }
+}
+Sheep.prototype = Object.create(Actor.prototype);
+Sheep.prototype.click = function(evt) {
+  sheeps.randomAttack(this);
+}
+
+var sharkTexture = PIXI.Texture.fromImage("shark.png");
+var sharkWidth = 128;
+var sharkHeight = 128;
+function Shark() {
+  Actor.call(this, sharkTexture, sharkWidth, sharkHeight);
+  if (this.click) {
+    this.sprite.click = this.click.bind(this);
+  }
+}
+Shark.prototype = Object.create(Actor.prototype);
+// Shark.prototype.click = function(evt) {
+//   sharks.randomAttack(this);
+// }
 
 function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min)) + min;
 }
 
-function midpoint(rect) {
-  return {x: (2*rect.x + rect.width) / 2, y: (2*rect.y + rect.height)}
-}
-
-function collide(r1, r2) {
-  if (r1.id == r2.id) {
-    return false;
-  }
-  return !(r2.x > r1.x+r1.width || 
-           r2.x+r2.width < r1.x || 
-           r2.y > r1.y+r1.height ||
-           r2.y+r2.height < r1.y);
-}
-
-// rects = {x:int, y:int, width:int, height:int}
-// return bool
-function collideArray(rect, sheeps) {
-  if (rect.x+rect.width >= SCREEN_WIDTH) {
-    return true;
-  }
-  if (rect.y+rect.height >= SCREEN_HEIGHT) {
-    return true;
-  }
-  for (var i = 0; i < sheeps.length; i++) {
-    if (collide(rect, sheeps[i])) {
-      return true
-    }
-  }
-  return false
-}
-
-// non-overlapping
-function genRect(sheeps, width, height) {
-  while (true) {
-    // Generate a random rects here.
-    var x = getRandomInt(0, SCREEN_WIDTH - width)
-    var y = getRandomInt(0, SCREEN_HEIGHT - height)
-    // Check to see if our rects conflict with any existing sheep.
-    if (!collideArray({x:x, y:y, width:width, height:height}, sheeps)) {
-      break
-    }
-  }
-  // ty based god for function scope :)
-  return {x: x, y: y}
-}
-
-var baseScale = 1;
-var sheeps = [];
-function initSheeps(numSheeps) {
-  for (var i = 0; i < numSheeps; i++) {
-    var s = new Sheep(sheepTexture);
-    sheeps.push(s);
-    stage.addChild(s.sprite);
-  }
-}
-
-sheeps.setPositions = function () {
+function Actors() {}
+Actors.prototype = new Array
+Actors.prototype.setPositions = function () {
   for (var i = 0; i < this.length; i++) {
     var pos = this[i].body.GetPosition();
     this[i].sprite.x = pos.x * b2Scale;
     this[i].sprite.y = pos.y * b2Scale;
-    ///this[i].sprite.rotation = this[i].body.GetAngle();
+    //this[i].sprite.rotation = this[i].body.GetAngle();
   }
 }
 
-sheeps.randomAttack = function(sheep) {
-  var pick = sheep.id;
-  while (pick == sheep.id) {
+Actors.prototype.randomAttack = function(actor) {
+  var pick = actor.id;
+  while (pick == actor.id) {
     pick = getRandomInt(0, this.length);
   }
-  var impulse = sheep.body.GetWorldCenter()
+  var impulse = actor.body.GetWorldCenter()
   impulse.Subtract(this[pick].body.GetWorldCenter());
-  impulse.Normalize()
   this[pick].body.ApplyImpulse(impulse, this[pick].body.GetWorldCenter());
 }
 
@@ -161,7 +126,7 @@ function drawRectAABB(g, aabb) {
                            (aabb.upperBound.y - aabb.lowerBound.y) * b2Scale)
 }
 
-sheeps.debugBodies = function(init) {
+Actors.prototype.debugBodies = function(init) {
   for (var i = 0; i < this.length; i++) {
     if (init) {
       var debug = new PIXI.Graphics
@@ -174,25 +139,36 @@ sheeps.debugBodies = function(init) {
   }
 }
 
-function shrinkSheeps(sheeps) {
-  // FIXME: probably buggy
-  return
-  var step = .1;
-  for (var i = 0; i < sheeps.length; i++) {
-    sheeps[i].scale.x = Math.max(baseScale, sheeps[i].scale.x - step);
-    sheeps[i].scale.y = Math.max(baseScale, sheeps[i].scale.y - step);
+var baseScale = 1;
+var sheeps = new Actors;
+function initSheeps(num) {
+  for (var i = 0; i < num; i++) {
+    var s = new Sheep(sheepTexture);
+    sheeps.push(s);
+    stage.addChild(s.sprite);
   }
 }
+
+var sharks = new Actors;
+function initSharks(num) {
+  for (var i = 0; i < num; i++) {
+    var s = new Shark(sharkTexture);
+    sharks.push(s);
+    stage.addChild(s.sprite);
+  }
+}
+
 
 function gameLogic() {
   world.Step(1/60, 3, 3);
   if (DEBUG) {
     sheeps.debugBodies(false);
+    sharks.debugBodies(false);
   }
   world.ClearForces();
   sheeps.setPositions();
+  sharks.setPositions();
   //moveSheeps(sheeps);
-  //shrinkSheeps(sheeps);
 }
 
 function animate() {
@@ -202,9 +178,11 @@ function animate() {
 }
 
 function init() {
-  initSheeps(5);
+  initSheeps(2);
+  initSharks(3);
   if (DEBUG) {
-    sheeps.debugBodies(true)
+    sheeps.debugBodies(true);
+    sharks.debugBodies(true);
   }
   requestAnimationFrame(animate);
 }
