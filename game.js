@@ -1,7 +1,9 @@
 "use strict";
 var SCREEN_WIDTH = 1200;
 var SCREEN_HEIGHT = 800;
+var DEBUG = false;
 var renderer = new PIXI.WebGLRenderer(SCREEN_WIDTH, SCREEN_HEIGHT);
+var graphics = new PIXI.Graphics
 
 document.body.appendChild(renderer.view);
 
@@ -17,7 +19,6 @@ var b2CircleShape = Box2D.Collision.Shapes.b2CircleShape;
 var b2DebugDraw = Box2D.Dynamics.b2DebugDraw;
 
 var world = new b2World(new b2Vec2(0, 0), true);
-
 var stage = new PIXI.Stage(0x00B200, true);
 stage.interactive = true;
 var b2Scale = 100;
@@ -26,11 +27,11 @@ var boxFixDef = new b2FixtureDef();
 boxFixDef.shape = new b2PolygonShape();
 var staticBodyDef = new b2BodyDef();
 staticBodyDef.type = b2Body.b2_staticBody;
-boxFixDef.shape.SetAsBox(10, 2);
+boxFixDef.shape.SetAsBox(SCREEN_WIDTH/b2Scale, 2);
 staticBodyDef.position.Set(9, SCREEN_HEIGHT/100 + 1);
 world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 
-boxFixDef.shape.SetAsBox(10, 1);
+boxFixDef.shape.SetAsBox(SCREEN_WIDTH/b2Scale, 1);
 staticBodyDef.position.Set(9, 0);
 world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 boxFixDef.shape.SetAsBox(1, 100);
@@ -52,7 +53,7 @@ function Sheep(texture) {
   // HACK
   this.width = 84;
   this.height = 73;
-  sheepFixDef.shape.SetAsBox(.5,.35);
+  sheepFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
   var x = getRandomInt(0, SCREEN_WIDTH - this.width)
   var y = getRandomInt(0, SCREEN_HEIGHT - this.height)
   sheepBodyDef.position.Set(x/b2Scale, y/b2Scale)
@@ -61,16 +62,14 @@ function Sheep(texture) {
   this.body.CreateFixture(sheepFixDef);
   this.sprite = new PIXI.Sprite(texture);
   this.sprite.interactive = true;
+  this.sprite.anchor.x = 0.5;
+  this.sprite.anchor.y = 0.5;
   this.sprite.position.x = x;
   this.sprite.position.y = y;
   // FIXME: fix this later
-  // this.click = function(evt) {
-  //   var step = 15;
-  //   var newWidth = this.width + step;
-  //   var newHeight = this.height + step;
-  //   this.width = newWidth;
-  //   this.height = newHeight;
-  // }
+  this.sprite.click = function(evt) {
+    sheeps.randomAttack(this);
+  }.bind(this)
 }
 
 var sheepTexture = PIXI.Texture.fromImage("sheep.gif");
@@ -131,7 +130,6 @@ function initSheeps(numSheeps) {
   for (var i = 0; i < numSheeps; i++) {
     var s = new Sheep(sheepTexture);
     sheeps.push(s);
-    console.log(s);
     stage.addChild(s.sprite);
   }
 }
@@ -141,6 +139,38 @@ sheeps.setPositions = function () {
     var pos = this[i].body.GetPosition();
     this[i].sprite.x = pos.x * b2Scale;
     this[i].sprite.y = pos.y * b2Scale;
+    ///this[i].sprite.rotation = this[i].body.GetAngle();
+  }
+}
+
+sheeps.randomAttack = function(sheep) {
+  var pick = sheep.id;
+  while (pick == sheep.id) {
+    pick = getRandomInt(0, this.length);
+  }
+  var impulse = sheep.body.GetWorldCenter()
+  impulse.Subtract(this[pick].body.GetWorldCenter());
+  impulse.Normalize()
+  this[pick].body.ApplyImpulse(impulse, this[pick].body.GetWorldCenter());
+}
+
+function drawRectAABB(g, aabb) {
+  return g.drawRect(aabb.lowerBound.x * b2Scale,
+                           aabb.lowerBound.y * b2Scale,
+                           (aabb.upperBound.x - aabb.lowerBound.x) * b2Scale,
+                           (aabb.upperBound.y - aabb.lowerBound.y) * b2Scale)
+}
+
+sheeps.debugBodies = function(init) {
+  for (var i = 0; i < this.length; i++) {
+    if (init) {
+      var debug = new PIXI.Graphics
+      debug.lineStyle(3, 0x000000)
+      debug.beginFill(0x00fb30, 0)
+      this[i].debug = debug
+      stage.addChild(this[i].debug)
+    }
+    drawRectAABB(this[i].debug, this[i].body.GetFixtureList().GetAABB())
   }
 }
 
@@ -156,6 +186,9 @@ function shrinkSheeps(sheeps) {
 
 function gameLogic() {
   world.Step(1/60, 3, 3);
+  if (DEBUG) {
+    sheeps.debugBodies(false);
+  }
   world.ClearForces();
   sheeps.setPositions();
   //moveSheeps(sheeps);
@@ -167,11 +200,12 @@ function animate() {
   renderer.render(stage);
   requestAnimationFrame(animate);
 }
-var DEBUG = false;
 
 function init() {
   initSheeps(5);
-  //setInterval(gameLogic, 500);
+  if (DEBUG) {
+    sheeps.debugBodies(true)
+  }
   requestAnimationFrame(animate);
 }
 
