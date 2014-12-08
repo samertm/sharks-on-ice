@@ -85,8 +85,6 @@ function Actor(sprite, width, height, restitution, dontCreateBody) {
   this.sprite.position.y = y;
   if (!dontCreateBody) {
     this.body = this.createBody()
-  } else {
-    console.log("YO")
   }
 }
 Actor.prototype.createBody = function() {
@@ -100,8 +98,8 @@ Actor.prototype.createBody = function() {
   return body;
 }
 
-var fishAliveTexture = PIXI.Texture.fromImage("fish-alive.png");
-var fishDeadTexture  = PIXI.Texture.fromImage("fish-dead.png");
+var fishAliveTexture = PIXI.Texture.fromImage("/img/fish-alive.png");
+var fishDeadTexture  = PIXI.Texture.fromImage("/img/fish-dead.png");
 var fishWidth        = 64;
 var fishHeight       = 44;
 function Fish() {
@@ -122,7 +120,7 @@ Fish.prototype.setDead = function() {
   stage.addChildUpdate(this.sprite);
 }
 
-var sharkTexture = PIXI.Texture.fromImage("shark.png");
+var sharkTexture = PIXI.Texture.fromImage("/img/shark.png");
 var sharkWidth   = 121;
 var sharkHeight = 117;
 function Shark() {
@@ -134,10 +132,10 @@ function Shark() {
 Shark.prototype = Object.create(Actor.prototype);
 Shark.prototype.constructor = Shark;
 
-var foodRed64Texture    = new PIXI.Texture.fromImage("food-red64.png");
-var foodYellow32Texture = new PIXI.Texture.fromImage("food-yellow32.png");
-var foodPurple16Texture = new PIXI.Texture.fromImage("food-purple16.png");
-var foodBlue8Texture    = new PIXI.Texture.fromImage("food-blue8.png");
+var foodRed64Texture    = new PIXI.Texture.fromImage("/img/food-red64.png");
+var foodYellow32Texture = new PIXI.Texture.fromImage("/img/food-yellow32.png");
+var foodPurple16Texture = new PIXI.Texture.fromImage("/img/food-purple16.png");
+var foodBlue8Texture    = new PIXI.Texture.fromImage("/img/food-blue8.png");
 function Food(dontCreateBody) {
   var s, size;
   var r = getRandomInt(0, 15);
@@ -193,6 +191,9 @@ Actors.prototype.randomAttack = function(actor) {
 }
 
 function drawRectAABB(g, aabb) {
+  if (g == undefined) {
+    return ;
+  }
   return g.drawRect(aabb.lowerBound.x * b2Scale,
                     aabb.lowerBound.y * b2Scale,
                     (aabb.upperBound.x - aabb.lowerBound.x) * b2Scale,
@@ -324,7 +325,6 @@ foods.addFood = function() {
 }
 
 var mouseX, mouseY, mousePVec, isMouseDown, selectedBody, mouseJoint;
-var canvasPosition = getElementPosition(renderer.view);
 
 document.addEventListener("mousedown", function(e) {
   isMouseDown = true;
@@ -340,8 +340,9 @@ document.addEventListener("mouseup", function() {
 }, true);
 
 function handleMouseMove(e) {
-  mouseX = (e.clientX - canvasPosition.x) / b2Scale;
-  mouseY = (e.clientY - canvasPosition.y) / b2Scale;
+  var canvasPosition = getElementPosition(renderer.view);
+  mouseX = (e.pageX - canvasPosition.x) / b2Scale;
+  mouseY = (e.pageY - canvasPosition.y) / b2Scale;
 };
 
 function getBodyAtMouse() {
@@ -477,7 +478,7 @@ function animate(timestamp) {
 var startText;
 function init() {
   // show instructions
-  startText  = new PIXI.Text("Eat the smaller blocks to spawn fishy friends!", {fill: "white"})
+  startText  = new PIXI.Text("Drag the fish to play! Eat the smaller blocks to spawn fishy friends!", {fill: "white"})
   startText.position.x = 300;
   startText.position.y = SCREEN_HEIGHT/2;
   stage.addChildUpdate(startText)
