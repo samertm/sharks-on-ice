@@ -67,26 +67,35 @@ var actorId         = 0;
 var dynamicBodyDef  = new b2BodyDef;
 dynamicBodyDef.type = b2Body.b2_dynamicBody;
 
-function Actor(sprite, width, height, restitution) {
+function Actor(sprite, width, height, restitution, dontCreateBody) {
   this.id = actorId++;
   this.state = "alive";
   this.width = width;
   this.height = height;
-  boxFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
-  boxFixDef.restitution = restitution;
+  this.restitution = restitution;
   var x = getRandomInt(0, SCREEN_WIDTH - this.width)
   var y = getRandomInt(0, SCREEN_HEIGHT - this.height)
-  dynamicBodyDef.position.Set(x/b2Scale, y/b2Scale)
-  this.body = world.CreateBody(dynamicBodyDef)
-  this.body.SetLinearDamping(1);
-  this.body.CreateFixture(boxFixDef);
-  this.body.actor = this;
   this.sprite = sprite;
   this.sprite.interactive = true;
   this.sprite.anchor.x = 0.5;
   this.sprite.anchor.y = 0.5;
   this.sprite.position.x = x;
   this.sprite.position.y = y;
+  if (!dontCreateBody) {
+    this.body = this.createBody()
+  } else {
+    console.log("YO")
+  }
+}
+Actor.prototype.createBody = function() {
+  boxFixDef.shape.SetAsBox(this.width/b2Scale/2,this.height/b2Scale/2);
+  boxFixDef.restitution = this.restitution;
+  dynamicBodyDef.position.Set(this.sprite.position.x/b2Scale, this.sprite.position.y/b2Scale)
+  var body = world.CreateBody(dynamicBodyDef)
+  body.SetLinearDamping(1);
+  body.CreateFixture(boxFixDef);
+  body.actor = this;
+  return body;
 }
 
 var fishAliveTexture = PIXI.Texture.fromImage("fish-alive.png");
@@ -94,7 +103,7 @@ var fishDeadTexture  = PIXI.Texture.fromImage("fish-dead.png");
 var fishWidth        = 64;
 var fishHeight       = 44;
 function Fish() {
-  Actor.call(this, new PIXI.Sprite(fishAliveTexture), fishWidth, fishHeight, .8);
+  Actor.call(this, new PIXI.Sprite(fishAliveTexture), fishWidth, fishHeight, .8, false);
 }
 Fish.prototype = Object.create(Actor.prototype);
 Fish.prototype.constructor = Fish;
@@ -115,7 +124,7 @@ var sharkTexture = PIXI.Texture.fromImage("shark.png");
 var sharkWidth   = 128;
 var sharkHeight = 128;
 function Shark() {
-  Actor.call(this, new PIXI.Sprite(sharkTexture), sharkWidth, sharkHeight, .2);
+  Actor.call(this, new PIXI.Sprite(sharkTexture), sharkWidth, sharkHeight, .2, false);
   this.target = null;
   this.body.GetFixtureList().SetDensity(4);
   this.body.ResetMassData();
@@ -127,7 +136,7 @@ var foodRed64Texture    = new PIXI.Texture.fromImage("food-red64.png");
 var foodYellow32Texture = new PIXI.Texture.fromImage("food-yellow32.png");
 var foodPurple16Texture = new PIXI.Texture.fromImage("food-purple16.png");
 var foodBlue8Texture    = new PIXI.Texture.fromImage("food-blue8.png");
-function Food() {
+function Food(dontCreateBody) {
   var s, size;
   var r = getRandomInt(0, 15);
   if (r < 8) {
@@ -151,7 +160,7 @@ function Food() {
     size = 8;
     s = new PIXI.Sprite(foodBlue8Texture);
   }
-  Actor.call(this, s, size, size, .4)
+  Actor.call(this, s, size, size, .4, dontCreateBody, false)
 }
 Food.prototype = Object.create(Actor.prototype);
 Food.prototype.constructor = Food;
@@ -235,6 +244,7 @@ Actors.prototype.random = function() {
   return this[getRandomInt(0, this.length)];
 }
 
+var deleteFromWorld = [];
 Actors.prototype.remove = function(id) {
   var removed;
   for (var i = 0; i < this.length; i++) {
@@ -245,7 +255,7 @@ Actors.prototype.remove = function(id) {
   if (!removed) {
     return;
   }
-  world.DestroyBody(removed.body);
+  deleteFromWorld.push(removed.body);
   stage.removeChild(removed.sprite);
   return removed;
 }
@@ -298,10 +308,17 @@ sharks.attack = function() {
 var foods = new Actors;
 function initFoods(num) {
   for (var i = 0; i < num; i++) {
-    var s = new Food();
+    var s = new Food(false);
     foods.push(s);
     stage.addChildUpdate(s.sprite);
   }
+}
+var addToWorld = [];
+foods.addFood = function() {
+  var s = new Food(true);
+  foods.push(s);
+  addToWorld.push(s);
+  stage.addChildUpdate(s.sprite);
 }
 
 var mouseX, mouseY, mousePVec, isMouseDown, selectedBody, mouseJoint;
@@ -369,6 +386,7 @@ function getElementPosition(element) {
   return {x: x, y: y};
 }
 
+var foodToAdd = 0;
 function gameLogic() {
   if(isMouseDown && (!mouseJoint)) {
     var body = getBodyAtMouse();
@@ -405,6 +423,17 @@ function gameLogic() {
     sharks.debugBodies(false);
   }
   world.ClearForces();
+  for (var i = 0; i < deleteFromWorld.length; i++) {
+    world.DestroyBody(deleteFromWorld[i]);
+  }
+  deleteFromWorld = [];
+  for (var i = 0; i < foodToAdd; i++) {
+    console.log(foodToAdd)
+    var foood = new Food(false);
+    foods.push(foood);
+    stage.addChildUpdate(foood.sprite);
+  }
+  foodToAdd = 0
 
   sharks.setAttackFish();
   sharks.attack();
@@ -412,16 +441,30 @@ function gameLogic() {
   fishes.setPositions();
   sharks.setPositions();
   foods.setPositions();
+
+  return fishes.getOne("state", function(s) { return s == "alive" }) != undefined
 }
 
-function animate() {
-  gameLogic()
-  renderer.render(stage);
-  requestAnimationFrame(animate);
+var previousTimestamp = performance.now()
+function animate(timestamp) {
+  if (gameLogic()) {
+    renderer.render(stage);
+    requestAnimationFrame(animate);
+  } else {
+    console.log("you lose!")
+    stage.removeChild(stage.textContainer);
+    stage.textContainer = undefined;
+    var t = new PIXI.Text("Game over! Your score is " + gameState.score + ". You did alright.", {fill: "white"})
+    t.position.x = 300;
+    t.position.y = SCREEN_HEIGHT/2;
+    stage.addChildUpdate(t);
+    renderer.render(stage);
+    // you lose
+  }
 }
 
 function init() {
-  initFishes(10);
+  initFishes(1);
   initSharks(3);
   initFoods(15);
   if (DEBUG) {
@@ -447,6 +490,7 @@ function init() {
       if (f) {
         gameState.addScore(f.score);
       }      
+      foodToAdd++;
     }
   }
   world.SetContactListener(contactListener);
