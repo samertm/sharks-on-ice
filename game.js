@@ -56,7 +56,9 @@ world.CreateBody(staticBodyDef).CreateFixture(boxFixDef);
 var gameState = {
   scoreText:  new PIXI.Text("Score: 0", {fill: "white"}),
   score: 0,
+  addFish: 0,
   addScore: function(x) {
+    this.addFish += x % 4; 
     this.score += x;
     this.scoreText.setText("Score: " + this.score);
   },
@@ -423,10 +425,6 @@ function gameLogic() {
     sharks.debugBodies(false);
   }
   world.ClearForces();
-  for (var i = 0; i < deleteFromWorld.length; i++) {
-    world.DestroyBody(deleteFromWorld[i]);
-  }
-  deleteFromWorld = [];
   for (var i = 0; i < foodToAdd; i++) {
     console.log(foodToAdd)
     var foood = new Food(false);
@@ -434,6 +432,19 @@ function gameLogic() {
     stage.addChildUpdate(foood.sprite);
   }
   foodToAdd = 0
+  if (gameState.addFish > 0 && fishes.length < 25) {
+      var s = new Fish(fishAliveTexture);
+      fishes.push(s);
+      stage.addChildUpdate(s.sprite);
+    gameState.addFish--
+  } else {
+    fishes.remove(fishes.getOne("state", function(s) { return s == "dead" }))
+  }
+  gameState.addFish = 0;
+  for (var i = 0; i < deleteFromWorld.length; i++) {
+    world.DestroyBody(deleteFromWorld[i]);
+  }
+  deleteFromWorld = [];
 
   sharks.setAttackFish();
   sharks.attack();
@@ -453,17 +464,23 @@ function animate(timestamp) {
   } else {
     console.log("you lose!")
     stage.removeChild(stage.textContainer);
+    stage.removeChild(startText);
     stage.textContainer = undefined;
     var t = new PIXI.Text("Game over! Your score is " + gameState.score + ". You did alright.", {fill: "white"})
     t.position.x = 300;
     t.position.y = SCREEN_HEIGHT/2;
     stage.addChildUpdate(t);
     renderer.render(stage);
-    // you lose
   }
 }
 
+var startText;
 function init() {
+  // show instructions
+  startText  = new PIXI.Text("Eat the smaller blocks to spawn fishy friends!", {fill: "white"})
+  startText.position.x = 300;
+  startText.position.y = SCREEN_HEIGHT/2;
+  stage.addChildUpdate(startText)
   initFishes(1);
   initSharks(3);
   initFoods(15);
@@ -480,7 +497,7 @@ function init() {
     }
     var b = contact.GetFixtureB().GetBody().actor;
     if (b) {
-    actors[b.constructor.name] = b;
+      actors[b.constructor.name] = b;
     }
     if (actors["Shark"] && actors["Fish"]) {
       actors["Fish"].setDead();
