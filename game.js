@@ -123,8 +123,8 @@ Fish.prototype.setDead = function() {
 }
 
 var sharkTexture = PIXI.Texture.fromImage("shark.png");
-var sharkWidth   = 128;
-var sharkHeight = 128;
+var sharkWidth   = 121;
+var sharkHeight = 117;
 function Shark() {
   Actor.call(this, new PIXI.Sprite(sharkTexture), sharkWidth, sharkHeight, .2, false);
   this.target = null;
